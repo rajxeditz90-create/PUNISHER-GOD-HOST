@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telegram Hoster</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+           background: #0f172a; color: #e2e8f0; }
+    .center { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 24px; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; gap: 12px; }
+    header h1 { font-size: 20px; margin: 0; }
+    .who { color: #94a3b8; font-size: 13px; }
+    .badge { padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-left: 6px; }
+    .badge.owner { background: #3730a3; color: #c7d2fe; }
+    .badge.user { background: #334155; color: #cbd5e1; }
+    a.logout { color: #94a3b8; text-decoration: none; font-size: 14px; }
+    a.logout:hover { color: #e2e8f0; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .card h2 { font-size: 14px; margin: 0 0 14px; color: #cbd5e1; text-transform: uppercase; letter-spacing: .04em; }
+    .bot-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+    .bot-head h2 { margin: 0; }
+    .bot-head-right { display: flex; align-items: center; gap: 14px; }
+    label { display: block; font-size: 13px; color: #94a3b8; margin: 12px 0 6px; }
+    input[type=text], input[type=password], textarea {
+      width: 100%; padding: 11px 13px; border-radius: 9px; border: 1px solid #475569;
+      background: #0f172a; color: #e2e8f0; font-size: 14px; font-family: inherit;
+    }
+    textarea { min-height: 300px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+               font-size: 13px; line-height: 1.5; resize: vertical; }
+    textarea[readonly] { opacity: .75; }
+    input:focus, textarea:focus { outline: none; border-color: #6366f1; }
+    .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
+    button { padding: 11px 18px; border: 0; border-radius: 9px; cursor: pointer;
+             font-size: 14px; font-weight: 600; color: #fff; background: #6366f1; }
+    button:hover { background: #4f46e5; }
+    button.green { background: #16a34a; } button.green:hover { background: #15803d; }
+    button.red { background: #dc2626; } button.red:hover { background: #b91c1c; }
+    button.ghost { background: #334155; } button.ghost:hover { background: #475569; }
+    button.small { padding: 7px 12px; font-size: 13px; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .status { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; background: #64748b; flex: none; }
+    .dot.on { background: #22c55e; box-shadow: 0 0 0 4px rgba(34,197,94,.18); }
+    .dot.off { background: #ef4444; box-shadow: 0 0 0 4px rgba(239,68,68,.15); }
+    .meta { color: #94a3b8; font-size: 12.5px; }
+    pre.logs { margin: 0; background: #0b1120; border: 1px solid #334155; border-radius: 9px;
+               padding: 14px; height: 200px; overflow: auto; font-size: 12.5px; line-height: 1.55;
+               font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: #cbd5e1; white-space: pre-wrap; }
+    .msg { font-size: 13px; min-height: 18px; }
+    .msg.ok { color: #86efac; } .msg.err { color: #fca5a5; }
+    .hint { color: #64748b; font-size: 12px; }
+    .warn { background: #78350f; color: #fde68a; padding: 10px 13px; border-radius: 9px; font-size: 13px; margin: 12px 0; }
+    .info { background: #1e3a5f; color: #bfdbfe; padding: 10px 13px; border-radius: 9px; font-size: 13px; margin-bottom: 18px; }
+    .flash { background: #7f1d1d; color: #fecaca; padding: 11px 14px; border-radius: 9px; margin-bottom: 18px; font-size: 14px; }
+    .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+    .tabs button { background: #334155; font-weight: 500; padding: 8px 14px; font-size: 13px; }
+    .tabs button.active { background: #6366f1; }
+    .pane { display: none; } .pane.active { display: block; }
+  </style>
+</head>
+<body>
+
+{% set messages = get_flashed_messages() %}
+{% set flash_msg = messages[0] if messages else None %}
+
+{% if not user %}
+  <div class="center">
+    <div class="card" style="width:min(380px,92vw)">
+      <h2>Telegram Hoster</h2>
+      {% if flash_msg %}<div class="flash">{{ flash_msg }}</div>{% endif %}
+
+      <div class="tabs">
+        <button id="tab-login" class="active" onclick="showPane('login')">Sign in</button>
+        {% if allow_registration %}
+        <button id="tab-register" onclick="showPane('register')">Create account</button>
+        {% endif %}
+      </div>
+
+      <div id="pane-login" class="pane active">
+        <form method="post" action="{{ url_for('login') }}">
+          <label>Username</label>
+          <input type="text" name="username" autocomplete="username" required>
+          <label>Password</label>
+          <input type="password" name="password" autocomplete="current-password" required>
+          <div class="btns"><button type="submit">Sign in</button></div>
+        </form>
+      </div>
+
+      {% if allow_registration %}
+      <div id="pane-register" class="pane">
+        <form method="post" action="{{ url_for('register') }}">
+          <label>Choose a username</label>
+          <input type="text" name="username" autocomplete="username" required>
+          <label>Choose a password (min 6 characters)</label>
+          <input type="password" name="password" autocomplete="new-password" required>
+          <div class="btns"><button type="submit">Create account</button></div>
+          <div class="hint" style="margin-top:12px">
+            Anyone can sign up and host up to {{ max_bots }} of their own bots.
+          </div>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <script>
+    function showPane(which) {
+      document.getElementById("pane-login").classList.toggle("active", which === "login");
+      var reg = document.getElementById("pane-register");
+      if (reg) reg.classList.toggle("active", which === "register");
+      document.getElementById("tab-login").classList.toggle("active", which === "login");
+      var t = document.getElementById("tab-register");
+      if (t) t.classList.toggle("active", which === "register");
+    }
+  </script>
+
+{% else %}
+  {% set is_owner = user.role == 'owner' %}
+  <div class="wrap">
+    <header>
+      <h1>Telegram Hoster</h1>
+      <div>
+        <span class="who">{{ user.username }}<span class="badge {{ user.role }}">{{ user.role }}</span></span>
+        <a class="logout" href="{{ url_for('logout') }}" style="margin-left:14px">Sign out</a>
+      </div>
+    </header>
+
+    {% if flash_msg %}<div class="flash">{{ flash_msg }}</div>{% endif %}
+
+    <div class="info">
+      Host your own bots with your own tokens. They run the shared script
+      (<code>{{ script_path }}</code>){% if not is_owner %}, uploaded by the owner{% endif %}.
+      Script version <code id="script-version">{{ script_version }}</code>
+      · your bots <strong>{{ bots|length }} / {{ max_bots }}</strong>.
+    </div>
+    {% if is_owner %}
+    <div class="warn">
+      As owner you can also upload the shared script, which every user's bots run. Keep this
+      panel password-protected and behind HTTPS.
+    </div>
+    {% endif %}
+
+    {% for b in bots %}
+    <div class="card bot-card" data-bot="{{ b.id }}">
+      <div class="bot-head">
+        <h2>{{ b.name }}</h2>
+        <div class="bot-head-right">
+          <span class="status">
+            <span id="dot-{{ b.id }}" class="dot {{ 'on' if b.running else 'off' }}"></span>
+            <span id="status-{{ b.id }}">{{ 'Running' if b.running else 'Stopped' }}</span>
+            <span id="meta-{{ b.id }}" class="meta"></span>
+          </span>
+          <button class="ghost small" onclick="deleteBot({{ b.id }})">Delete</button>
+        </div>
+      </div>
+      <div id="stale-{{ b.id }}" class="warn" style="display:none">
+        Running an older version of the shared script — stop and start to update.
+      </div>
+      <div class="btns">
+        <button id="start-{{ b.id }}" class="green" onclick="startBot({{ b.id }})">Start</button>
+        <button id="stop-{{ b.id }}" class="red" onclick="stopBot({{ b.id }})">Stop</button>
+        <span id="msg-{{ b.id }}" class="msg"></span>
+      </div>
+      <label>Bot token</label>
+      <input type="text" id="token-{{ b.id }}" value="{{ b.masked_token }}" placeholder="123456:ABC...">
+      <label>Owner ID</label>
+      <input type="text" id="owner-{{ b.id }}" value="{{ b.owner_id }}" placeholder="123456789">
+      <div class="btns">
+        <button onclick="saveConfig({{ b.id }})">Save credentials</button>
+        <span class="hint">Token is stored on the server; never shown in full.</span>
+      </div>
+      <label>Logs</label>
+      <pre id="logs-{{ b.id }}" class="logs"></pre>
+    </div>
+    {% endfor %}
+
+    {% if bots|length < max_bots %}
+    <div class="card">
+      <h2>Add a bot</h2>
+      <label>Name</label>
+      <input type="text" id="new-name" placeholder="My bot">
+      <label>Bot token (from @BotFather)</label>
+      <input type="text" id="new-token" placeholder="123456:ABC-DEF...">
+      <label>Owner ID (your numeric Telegram id)</label>
+      <input type="text" id="new-owner" placeholder="123456789">
+      <div class="btns">
+        <button onclick="addBot()">Add bot</button>
+        <span id="add-msg" class="msg"></span>
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <h2>Add a bot</h2>
+      <div class="hint">Limit reached ({{ max_bots }} bots per user). Delete one to add another.</div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <h2>Shared bot script ({{ script_path }}){% if not is_owner %} — read-only{% endif %}</h2>
+      <textarea id="script" spellcheck="false" {% if not is_owner %}readonly{% endif %}
+                placeholder="Paste your bot code here..."></textarea>
+      <div class="btns">
+        {% if is_owner %}<button onclick="saveScript()">Save script</button>{% endif %}
+        <button class="ghost" onclick="loadScript()">Reload</button>
+        <span class="hint">Reads BOT_TOKEN and OWNER_ID from the environment.</span>
+      </div>
+      <div id="script-msg" class="msg"></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const BOTS = [{% for b in bots %}{{ b.id }}{{ "," if not loop.last }}{% endfor %}];
+
+    function flashEl(el, text, ok) {
+      const e = $(el);
+      e.textContent = text;
+      e.className = "msg " + (ok ? "ok" : "err");
+      setTimeout(() => { e.textContent = ""; }, 4000);
+    }
+
+    async function post(url, body) {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+      });
+      return r.json();
+    }
+
+    async function refreshBot(bid) {
+      try {
+        const s = await (await fetch(`/api/bots/${bid}/status`)).json();
+        if (s.error) return;
+        $("dot-" + bid).className = "dot " + (s.running ? "on" : "off");
+        $("status-" + bid).textContent = s.running ? "Running" : "Stopped";
+        $("meta-" + bid).textContent = s.running
+          ? `pid ${s.pid} · up ${s.uptime}s · script ${s.running_version}` : "";
+        $("start-" + bid).disabled = s.running;
+        $("stop-" + bid).disabled = !s.running;
+        const stale = s.running && s.running_version && s.current_version &&
+                      s.running_version !== s.current_version;
+        $("stale-" + bid).style.display = stale ? "block" : "none";
+      } catch (e) { /* ignore transient errors */ }
+    }
+
+    async function refreshLogs(bid) {
+      try {
+        const d = await (await fetch(`/api/bots/${bid}/logs?lines=120`)).json();
+        if (d.error) return;
+        const pre = $("logs-" + bid);
+        const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
+        pre.textContent = d.lines.join("\n") || "(no output yet)";
+        if (atBottom) pre.scrollTop = pre.scrollHeight;
+      } catch (e) { /* ignore */ }
+    }
+
+    async function startBot(bid) {
+      const r = await post(`/api/bots/${bid}/start`);
+      flashEl("msg-" + bid, r.message, r.ok);
+      refreshBot(bid); refreshLogs(bid);
+    }
+    async function stopBot(bid) {
+      const r = await post(`/api/bots/${bid}/stop`);
+      flashEl("msg-" + bid, r.message, r.ok);
+      refreshBot(bid); refreshLogs(bid);
+    }
+    async function saveConfig(bid) {
+      const r = await post(`/api/bots/${bid}/config`, {
+        bot_token: $("token-" + bid).value,
+        owner_id: $("owner-" + bid).value,
+      });
+      if (r.masked_token) $("token-" + bid).value = r.masked_token;
+      flashEl("msg-" + bid, r.ok ? "Saved." : "Failed.", r.ok);
+    }
+    async function deleteBot(bid) {
+      if (!confirm("Delete this bot? It will be stopped and removed.")) return;
+      await post(`/api/bots/${bid}/delete`);
+      location.reload();
+    }
+    async function addBot() {
+      const r = await post("/api/bots", {
+        name: $("new-name").value,
+        bot_token: $("new-token").value,
+        owner_id: $("new-owner").value,
+      });
+      if (r.ok) location.reload();
+      else flashEl("add-msg", r.error || "Failed.", false);
+    }
+
+    async function loadScript() {
+      const d = await (await fetch("/api/script")).json();
+      $("script").value = d.script || "";
+    }
+    async function saveScript() {
+      const r = await post("/api/script", { script: $("script").value });
+      flashEl("script-msg", r.ok ? "Saved." : (r.error || "Failed."), r.ok);
+    }
+
+    function tick() { BOTS.forEach((b) => { refreshBot(b); refreshLogs(b); }); }
+
+    loadScript();
+    tick();
+    setInterval(tick, 2500);
+  </script>
+{% endif %}
+
+</body>
+</html>
