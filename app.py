@@ -48,6 +48,7 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -425,6 +426,30 @@ def healthz():
     return "ok", 200
 
 
+@app.route("/diag")
+def diag():
+    """Deployment self-check: reveals path/permission problems fast."""
+    tpl = os.path.join(BASE_DIR, "templates")
+    info = {
+        "cwd": os.getcwd(),
+        "base_dir": BASE_DIR,
+        "templates_dir": tpl,
+        "templates_dir_exists": os.path.isdir(tpl),
+        "index_html_exists": os.path.isfile(os.path.join(tpl, "index.html")),
+        "data_dir": DATA_DIR,
+        "data_writable": os.access(DATA_DIR, os.W_OK),
+        "script_path": SCRIPT_PATH,
+        "script_exists": os.path.isfile(SCRIPT_PATH),
+        "port": PANEL_PORT,
+    }
+    try:
+        with db() as conn:
+            info["users"] = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    except Exception as exc:  # noqa: BLE001
+        info["db_error"] = str(exc)
+    return jsonify(info)
+
+
 @app.route("/register", methods=["POST"])
 def register():
     if not ALLOW_REGISTRATION:
@@ -581,6 +606,15 @@ def api_script_save():
     return jsonify({"ok": True})
 
 
+# --------------------------------------------------------------- errors ------
+@app.errorhandler(Exception)
+def on_unhandled(e):
+    if isinstance(e, HTTPException):
+        return e
+    app.logger.exception("unhandled error while serving a request")
+    return "Internal error -- check /diag and the deploy logs.", 500
+
+
 # ------------------------------------------------------------------ main -----
 def _shutdown(*_):
     manager.stop_all()
@@ -597,6 +631,11 @@ def main():
     print(f"telegram-hoster listening on http://{PANEL_HOST}:{PANEL_PORT}")
     print(f"Owner account: '{OWNER_USERNAME}' (uploads the shared script).")
     print(f"Max bots per user: {MAX_BOTS_PER_USER}.")
+    tpl = os.path.join(BASE_DIR, "templates")
+    print(f"  templates dir : {tpl} (exists={os.path.isdir(tpl)}, "
+          f"index={os.path.isfile(os.path.join(tpl, 'index.html'))})")
+    print(f"  DATA_DIR      : {DATA_DIR} (writable={os.access(DATA_DIR, os.W_OK)})")
+    print(f"  script        : {SCRIPT_PATH} (exists={os.path.isfile(SCRIPT_PATH)})")
     if OWNER_PASSWORD == "changeme123":
         print("WARNING: OWNER_PASSWORD is still the default -- change it in app.py.")
     app.run(host=PANEL_HOST, port=PANEL_PORT, threaded=True)
